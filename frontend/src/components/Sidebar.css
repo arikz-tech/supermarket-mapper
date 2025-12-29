@@ -1,0 +1,116 @@
+.sidebar {
+  min-width: 260px;
+  max-width: 260px;
+  background: #212529; /* Dark background */
+  color: #fff;
+  transition: all 0.3s;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1040;
+  overflow-y: auto;
+  box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+}
+
+.sidebar-header {
+  padding: 20px;
+  background: #1a1d20;
+  border-bottom: 1px solid #2c3034;
+}
+
+.sidebar.active {
+  margin-left: -260px;
+}
+
+/* Mobile: Hidden by default, toggled via class */
+@media (max-width: 768px) {
+  .sidebar {
+    margin-left: -260px;
+  }
+  .sidebar.mobile-show {
+    margin-left: 0;
+  }
+  .sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1035;
+    display: none;
+  }
+  .sidebar-overlay.show {
+    display: block;
+  }
+}
+
+.nav-link-custom {
+  color: #adb5bd;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  border-left: 4px solid transparent;
+  transition: all 0.2s;
+}
+
+.nav-link-custom:hover {
+  color: #fff;
+  background: #2c3034;
+  border-left-color: #6c757d;
+}
+
+.nav-link-custom.active {
+  color: #212529;
+  background: #ffc107; /* Yellow */
+  border-left-color: #212529;
+}
+
+.nav-link-custom i {
+  font-size: 1.2rem;
+  margin-right: 15px;
+  width: 25px;
+  text-align: center;
+}
+
+/* RTL Support */
+[dir="rtl"] .sidebar {
+  left: auto;
+  right: 0;
+  box-shadow: -4px 0 10px rgba(0,0,0,0.1);
+}
+
+[dir="rtl"] .sidebar.active {
+  margin-left: 0;
+  margin-right: -260px;
+}
+
+@media (max-width: 768px) {
+  [dir="rtl"] .sidebar {
+    margin-left: 0;
+    margin-right: -260px;
+  }
+  [dir="rtl"] .sidebar.mobile-show {
+    margin-right: 0;
+  }
+}
+
+[dir="rtl"] .nav-link-custom {
+  border-left: none;
+  border-right: 4px solid transparent;
+}
+
+[dir="rtl"] .nav-link-custom:hover {
+  border-right-color: #6c757d;
+}
+
+[dir="rtl"] .nav-link-custom.active {
+  border-right-color: #212529;
+}
+
+[dir="rtl"] .nav-link-custom i {
+  margin-right: 0;
+  margin-left: 15px;
+}
