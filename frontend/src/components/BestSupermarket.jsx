@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import axios from 'axios';
 
 const mapContainerStyle = {
@@ -8,6 +8,7 @@ const mapContainerStyle = {
   height: '100%'
 };
 
+// ... existing nameMapping ...
 const nameMapping = {
   "rami levy": "רמי לוי",
   "shufersal": "שופרסל",
@@ -27,13 +28,63 @@ const BestSupermarket = ({ products }) => {
   const { t } = useLanguage();
   const [nearbyStores, setNearbyStores] = useState([]);
   const [userPosition, setUserPosition] = useState(null);
-  const [selectedMarker, setSelectedMarker] = useState(null);
   const [closestBestStoreId, setClosestBestStoreId] = useState(null);
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: "AIzaSyCEE5XrvFJOPq4ZtbxkEcHnCuNnVCMQprw"
+  });
 
   // ... bestStore ...
   const bestStore = useMemo(() => {
     if (!products || products.length === 0) return null;
 
+    // 1. Identify Unique Stores
+    const allStores = new Set();
+    products.forEach(p => p.entries.forEach(e => allStores.add(e.store)));
+    const uniqueStores = Array.from(allStores);
+
+    // 2. Find Common Products (Intersection)
+    const commonProducts = products.filter(p => {
+      const pStores = new Set(p.entries.map(e => e.store));
+      return uniqueStores.every(s => pStores.has(s));
+    });
+
+    // 3. Basket Calculation (Preferred)
+    if (commonProducts.length > 0 && uniqueStores.length > 1) {
+       const basketTotals = {};
+       uniqueStores.forEach(store => basketTotals[store] = 0);
+
+       commonProducts.forEach(p => {
+         p.entries.forEach(e => {
+            if (basketTotals[e.store] !== undefined) {
+               basketTotals[e.store] += e.price;
+            }
+         });
+       });
+
+       let minTotal = Infinity;
+       let winner = null;
+       Object.entries(basketTotals).forEach(([store, total]) => {
+         if (total < minTotal) {
+           minTotal = total;
+           winner = store;
+         }
+       });
+
+       // Calculate comparisons
+       const comparisons = [];
+       Object.entries(basketTotals).forEach(([store, total]) => {
+         if (store !== winner) {
+           comparisons.push({ name: store, total, diff: total - minTotal });
+         }
+       });
+       comparisons.sort((a, b) => b.diff - a.diff);
+
+       return winner ? { name: winner, total: minTotal, count: commonProducts.length, isBasket: true, comparisons } : null;
+    }
+
+    // 4. Fallback: Count of Cheapest Items
     const scores = {};
 
     products.forEach(item => {
@@ -60,7 +111,7 @@ const BestSupermarket = ({ products }) => {
       }
     });
 
-    return winner ? { name: winner, count: maxScore } : null;
+    return winner ? { name: winner, count: maxScore, isBasket: false } : null;
   }, [products]);
 
   const receiptStoreNames = useMemo(() => {
@@ -239,9 +290,35 @@ const BestSupermarket = ({ products }) => {
               <h2 className="display-6 fw-bold text-success mb-2">{bestStore.name}</h2>
               <p className="lead text-muted mb-0">{t('bestSupermarket.recommended')}</p>
               <hr className="my-3 w-50 mx-auto" />
-              <div className="small text-muted mb-1">
-                 {bestStore.count} {t('bestSupermarket.cheapestCount')}
-              </div>
+              
+              {bestStore.isBasket ? (
+                 <>
+                   <div className="fs-4 fw-bold text-dark mb-2">
+                      ₪{bestStore.total.toFixed(2)}
+                   </div>
+                   
+                   {bestStore.comparisons && bestStore.comparisons.length > 0 && (
+                     <div className="mb-3">
+                        {bestStore.comparisons.map((comp, idx) => (
+                           <div key={idx} className="text-success small fw-medium">
+                              <i className="bi bi-arrow-down-circle-fill me-1"></i>
+                              {t('bestSupermarket.saveVs')
+                                .replace('{amount}', comp.diff.toFixed(2))
+                                .replace('{store}', comp.name)}
+                           </div>
+                        ))}
+                     </div>
+                   )}
+
+                   <div className="small text-muted border-top pt-2">
+                      {t('bestSupermarket.basketCount').replace('{count}', bestStore.count)}
+                   </div>
+                 </>
+              ) : (
+                 <div className="small text-muted mb-1">
+                    {bestStore.count} {t('bestSupermarket.cheapestCount')}
+                 </div>
+              )}
 
               <div className="small text-muted fst-italic mt-1 mb-4">
                  {t('bestSupermarket.basedOn')}
@@ -249,7 +326,7 @@ const BestSupermarket = ({ products }) => {
 
               {/* Google Map */}
               <div className="mx-auto border rounded overflow-hidden shadow-sm" style={{ height: '350px' }}>
-                <LoadScript googleMapsApiKey="AIzaSyCEE5XrvFJOPq4ZtbxkEcHnCuNnVCMQprw">
+                {isLoaded ? (
                   <GoogleMap
                     mapContainerStyle={mapContainerStyle}
                     center={userPosition ? { lat: userPosition[0], lng: userPosition[1] } : { lat: 32.0853, lng: 34.7818 }}
@@ -302,7 +379,13 @@ const BestSupermarket = ({ products }) => {
                         );
                      })}
                   </GoogleMap>
-                </LoadScript>
+                ) : (
+                  <div className="d-flex align-items-center justify-content-center h-100 bg-light">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">Loading Map...</span>
+                    </div>
+                  </div>
+                )}
               </div>
            </div>
          ) : (

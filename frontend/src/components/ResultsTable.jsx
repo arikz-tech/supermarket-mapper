@@ -1,8 +1,31 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
 const ResultsTable = ({ products, refresh }) => {
   const { t } = useLanguage();
+
+  // 1. Calculate unique stores from the full product list
+  const uniqueStores = useMemo(() => {
+    const stores = new Set();
+    products.forEach(p => {
+      if (p.entries) {
+        p.entries.forEach(e => stores.add(e.store));
+      }
+    });
+    return Array.from(stores);
+  }, [products]);
+
+  // 2. Filter products that exist in ALL unique stores
+  const filteredProducts = useMemo(() => {
+    if (uniqueStores.length === 0) return [];
+    
+    return products.filter(p => {
+      if (!p.entries) return false;
+      const productStores = new Set(p.entries.map(e => e.store));
+      // strict intersection: must be present in every store found in the dataset
+      return uniqueStores.every(s => productStores.has(s));
+    });
+  }, [products, uniqueStores]);
 
   return (
     <div className="card shadow-sm">
@@ -11,6 +34,12 @@ const ResultsTable = ({ products, refresh }) => {
           <h5 className="card-title mb-0">{t('resultsTitle')}</h5>
           <button onClick={refresh} className="btn btn-sm btn-outline-secondary">{t('refresh')}</button>
         </div>
+        {uniqueStores.length > 1 && (
+          <div className="alert alert-info py-2 px-3 small mb-2">
+            <i className="bi bi-info-circle me-2"></i>
+            {t('showingCommonProducts').replace('{count}', uniqueStores.length)} <strong>{uniqueStores.join(', ')}</strong>
+          </div>
+        )}
       </div>
       <div className="table-responsive">
         <table className="table table-hover mb-0">
@@ -28,8 +57,14 @@ const ResultsTable = ({ products, refresh }) => {
                   {t('noData')}
                 </td>
               </tr>
+            ) : filteredProducts.length === 0 ? (
+              <tr>
+                 <td colSpan="3" className="text-center py-4 text-muted">
+                    {t('noCommonProducts')}
+                 </td>
+              </tr>
             ) : (
-              products.map((item, idx) => {
+              filteredProducts.map((item, idx) => {
                 const prices = item.entries.map(e => e.price);
                 const minPrice = Math.min(...prices);
                 

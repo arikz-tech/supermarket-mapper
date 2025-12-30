@@ -18,7 +18,11 @@ const Upload = ({ onUploadSuccess }) => {
     const selected = e.target.files[0];
     if (selected) {
       setFile(selected);
-      setPreview(URL.createObjectURL(selected));
+      if (selected.type.startsWith('image/')) {
+        setPreview(URL.createObjectURL(selected));
+      } else {
+        setPreview('pdf'); // Special value for PDF preview
+      }
       setShowCamera(false);
       setMessage('');
     }
@@ -92,7 +96,7 @@ const Upload = ({ onUploadSuccess }) => {
                type="file" 
                ref={fileInputRef}
                className="d-none" 
-               accept="image/*" 
+               accept="image/*,application/pdf" 
                onChange={handleFileChange} 
              />
              <button 
@@ -123,7 +127,14 @@ const Upload = ({ onUploadSuccess }) => {
 
         {preview && (
           <div className="mb-3">
-            <img src={preview} alt="Preview" className="img-fluid rounded border mb-3" style={{ maxHeight: '400px' }} />
+            {preview === 'pdf' ? (
+              <div className="text-center p-4 border rounded mb-3 bg-light">
+                <i className="bi bi-file-earmark-pdf-fill" style={{ fontSize: '4rem', color: '#dc3545' }}></i>
+                <p className="mt-2 mb-0 fw-bold">{file?.name}</p>
+              </div>
+            ) : (
+              <img src={preview} alt="Preview" className="img-fluid rounded border mb-3" style={{ maxHeight: '400px' }} />
+            )}
             <div className="d-flex justify-content-center gap-2">
               <button className="btn btn-outline-secondary" onClick={() => { setFile(null); setPreview(null); }}>
                 {t('upload.cancel')}

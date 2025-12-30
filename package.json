@@ -1,0 +1,16 @@
+{
+  "name": "supermarket-receptions-mapper",
+  "version": "1.0.0",
+  "description": "A full-stack application for mapping and analyzing supermarket receipts.",
+  "main": "backend/server.js",
+  "scripts": {
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "start": "node backend/server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": "18.x"
+  }
+}

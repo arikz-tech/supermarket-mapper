@@ -4,6 +4,7 @@ export const translations = {
     uploadTitle: "Upload Receipts",
     resultsTitle: "Product Comparison Table",
     mapTitle: "Supermarket Map",
+    appTitle: "Supermarket Mapper",
     receiptManagement: "Receipt Management",
     productName: "Product Name",
     pricesFound: "Prices Found",
@@ -32,14 +33,42 @@ export const translations = {
       recommended: "Recommended Store",
       cheapestCount: "Items found cheapest here",
       basedOn: "Based on your receipts analysis",
-      noData: "Upload receipts to see recommendations"
-    }
+      noData: "Upload receipts to see recommendations",
+      totalBasketCost: "Total Basket Cost:",
+      basketCount: "Total cost for {count} common products",
+      saveVs: "Save ₪{amount} vs {store}"
+    },
+    receiptMgr: {
+      title: "Uploaded Receipts",
+      date: "Date",
+      store: "Store",
+      total: "Total",
+      preview: "Preview",
+      actions: "Actions",
+      noReceipts: "No receipts uploaded yet.",
+      deleteConfirm: "Are you sure you want to delete this receipt? This will remove all associated products.",
+      edit: "Edit",
+      delete: "Delete",
+      editModalTitle: "Edit Receipt",
+      storeName: "Store Name",
+      modalDate: "Date",
+      totalPrice: "Total Price",
+      products: "Products",
+      addProduct: "Add Product",
+      cancel: "Cancel",
+      saveChanges: "Save Changes",
+      saving: "Saving...",
+      previewTitle: "Receipt Preview"
+    },
+    showingCommonProducts: "Showing only products found in all {count} stores:",
+    noCommonProducts: "No common products found across all stores. Try adding missing products via the \"Edit Receipt\" feature."
   },
   he: {
     welcome: "ברוך שובך, מנהל",
     uploadTitle: "העלאת קבלות",
     resultsTitle: "טבלת השוואת מוצרים",
     mapTitle: "מפת סופרמרקטים",
+    appTitle: "ממפה סופרמרקטים",
     receiptManagement: "ניהול קבלות",
     productName: "שם המוצר",
     pricesFound: "מחירים שנמצאו",
@@ -68,7 +97,34 @@ export const translations = {
       recommended: "חנות מומלצת",
       cheapestCount: "פריטים שנמצאו הכי זולים כאן",
       basedOn: "מבוסס על ניתוח הקבלות שלך",
-      noData: "העלה קבלות כדי לראות המלצות"
-    }
+      noData: "העלה קבלות כדי לראות המלצות",
+      totalBasketCost: "עלות סל כוללת:",
+      basketCount: "עלות כוללת עבור {count} מוצרים משותפים",
+      saveVs: "חיסכון של ₪{amount} מול {store}"
+    },
+    receiptMgr: {
+      title: "קבלות שהועלו",
+      date: "תאריך",
+      store: "חנות",
+      total: "סה\"כ",
+      preview: "תצוגה מקדימה",
+      actions: "פעולות",
+      noReceipts: "טרם הועלו קבלות.",
+      deleteConfirm: "האם אתה בטוח שברצונך למחוק קבלה זו? פעולה זו תסיר את כל המוצרים המשויכים אליה.",
+      edit: "ערוך",
+      delete: "מחק",
+      editModalTitle: "עריכת קבלה",
+      storeName: "שם החנות",
+      modalDate: "תאריך",
+      totalPrice: "מחיר כולל",
+      products: "מוצרים",
+      addProduct: "הוסף מוצר",
+      cancel: "ביטול",
+      saveChanges: "שמור שינויים",
+      saving: "שומר...",
+      previewTitle: "תצוגת קבלה"
+    },
+    showingCommonProducts: "מציג רק מוצרים שנמצאו בכל {count} החנויות:",
+    noCommonProducts: "לא נמצאו מוצרים משותפים בכל החנויות. נסה להעזר באפשרות \"עריכת קבלה\" כדי לתקן שמות מוצרים."
   }
 };

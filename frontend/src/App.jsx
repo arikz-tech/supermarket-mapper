@@ -49,7 +49,7 @@ function App() {
                  <i className="bi bi-list fs-5"></i>
                </button>
 
-               <span className="navbar-brand fw-bold d-md-none">ReceiptMap</span>
+               <span className="navbar-brand fw-bold d-md-none">{t('appTitle')}</span>
                
                <div className="ms-auto d-flex align-items-center">
                   <select 
@@ -72,7 +72,7 @@ function App() {
             </div>
          </nav>
 
-         <div className="container-fluid px-0 py-4">
+         <div className="container-fluid px-3 px-md-4 py-4">
              <Routes>
                <Route path="/" element={
                  <div className="row justify-content-center">

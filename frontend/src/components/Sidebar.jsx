@@ -22,7 +22,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                 <i className="bi bi-basket2-fill fs-5"></i>
              </div>
              <div>
-               <h5 className="mb-0 fw-bold">ReceiptMap</h5>
+               <h5 className="mb-0 fw-bold">{t('appTitle')}</h5>
              </div>
           </div>
           {/* Close button for mobile inside sidebar */}

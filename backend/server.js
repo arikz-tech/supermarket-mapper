@@ -6,7 +6,7 @@ const db = require('./database');
 const { extractData } = require('./ocr');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
@@ -17,10 +17,9 @@ app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, 'uploads');
-    // Ensure directory exists (node 10+ has fs.mkdir recursive, but we assume it exists or create it)
     const fs = require('fs');
-    if (!fs.existsSync(uploadDir)){
-        fs.mkdirSync(uploadDir);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
@@ -28,11 +27,19 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + '-' + file.originalname);
   }
 });
-const upload = multer({ storage });
 
-// Routes
-app.get('/', (req, res) => {
-  res.send('Receipt Mapper API Running');
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only images and PDFs are allowed.'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
 // Upload & Process
@@ -41,22 +48,27 @@ app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const imagePath = req.file.path;
-  console.log(`Processing file: ${imagePath}`);
+  const filePath = req.file.path;
+  console.log(`Processing file: ${filePath}`);
 
   try {
-    const data = await extractData(imagePath);
+    const data = await extractData(filePath);
     
     const stmt = db.prepare("INSERT INTO receipts (store_name, date_time, total_price, image_path) VALUES (?, ?, ?, ?)");
     stmt.run(data.store_name, new Date().toISOString(), data.total, req.file.filename, function(err) {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        console.error('DB_INSERT_ERROR:', err.message);
+        return res.status(500).json({ error: 'Failed to save receipt data.' });
+      }
       
       const receiptId = this.lastID;
       const prodStmt = db.prepare("INSERT INTO products (receipt_id, name, price) VALUES (?, ?, ?)");
       
-      data.products.forEach(prod => {
-        prodStmt.run(receiptId, prod.name, prod.price);
-      });
+      if (data.products && data.products.length > 0) {
+        data.products.forEach(prod => {
+          prodStmt.run(receiptId, prod.name, prod.price);
+        });
+      }
       prodStmt.finalize();
       
       res.json({ success: true, receiptId, data });
@@ -64,8 +76,13 @@ app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
     stmt.finalize();
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to process image' });
+    console.error('UPLOAD_PROCESSING_ERROR:', error.message);
+    // Send a more specific error message to the client
+    if (error.message.includes("PDF conversion failed")) {
+      // If Ghostscript is not installed or fails
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Failed to process file.' });
   }
 });
 
@@ -110,6 +127,58 @@ app.get('/api/receipts', (req, res) => {
   });
 });
 
+// Get Single Receipt with Products
+app.get('/api/receipts/:id', (req, res) => {
+  const id = req.params.id;
+  
+  db.get("SELECT * FROM receipts WHERE id = ?", [id], (err, receipt) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+
+    db.all("SELECT * FROM products WHERE receipt_id = ?", [id], (err, products) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ ...receipt, products });
+    });
+  });
+});
+
+// Update Receipt
+app.put('/api/receipts/:id', (req, res) => {
+  const id = req.params.id;
+  const { store_name, date_time, total_price, products } = req.body;
+
+  db.serialize(() => {
+    // 1. Update Receipt Details
+    const stmt = db.prepare("UPDATE receipts SET store_name = ?, date_time = ?, total_price = ? WHERE id = ?");
+    stmt.run(store_name, date_time, total_price, id, function(err) {
+      if (err) {
+        console.error("Update Receipt Error:", err);
+        return res.status(500).json({ error: err.message });
+      }
+    });
+    stmt.finalize();
+
+    // 2. Replace Products (Delete all old, Insert new)
+    // Transaction-like behavior is better, but serialize ensures sequential execution in sqlite3 node driver
+    db.run("DELETE FROM products WHERE receipt_id = ?", [id], (err) => {
+      if (err) {
+        console.error("Delete Products Error:", err);
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (products && products.length > 0) {
+        const prodStmt = db.prepare("INSERT INTO products (receipt_id, name, price) VALUES (?, ?, ?)");
+        products.forEach(prod => {
+          prodStmt.run(id, prod.name, prod.price);
+        });
+        prodStmt.finalize();
+      }
+      
+      res.json({ success: true, message: "Receipt updated successfully" });
+    });
+  });
+});
+
 // Delete Receipt
 app.delete('/api/receipts/:id', (req, res) => {
   const id = req.params.id;
@@ -146,6 +215,28 @@ app.delete('/api/receipts/:id', (req, res) => {
     });
   });
 });
+
+// ====================================================================
+// SERVE FRONTEND STATIC FILES
+// This should be after all other API routes and before app.listen()
+// ====================================================================
+const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+
+// Check if frontend build exists
+const fs = require('fs');
+if (fs.existsSync(frontendDistPath)) {
+  // Serve static files from the React app
+  app.use(express.static(frontendDistPath));
+
+  // The "catchall" handler: for any request that doesn't
+  // match one above, send back React's index.html file.
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+  console.log(`Serving frontend from: ${frontendDistPath}`);
+} else {
+  console.log('Frontend build not found. Run `npm run build` in the root directory.');
+}
 
 
 app.listen(PORT, () => {
