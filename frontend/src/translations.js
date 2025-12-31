@@ -16,6 +16,15 @@ export const translations = {
       receipts: "Receipts",
       settings: "Settings"
     },
+    settings: {
+      title: "Settings",
+      language: "Language",
+      dangerZone: "Danger Zone",
+      deleteAllReceipts: "Delete All Receipts",
+      deleteAllConfirm: "Are you sure you want to delete ALL receipts? This action cannot be undone.",
+      deleteSuccess: "All receipts have been deleted.",
+      deleteError: "Failed to delete receipts."
+    },
     upload: {
       selectFile: "Select Receipt Image",
       uploading: "Uploading...",
@@ -79,6 +88,15 @@ export const translations = {
       dashboard: "לוח בקרה",
       receipts: "קבלות",
       settings: "הגדרות"
+    },
+    settings: {
+      title: "הגדרות",
+      language: "שפה",
+      dangerZone: "אזור מסוכן",
+      deleteAllReceipts: "מחק את כל הקבלות",
+      deleteAllConfirm: "האם אתה בטוח שברצונך למחוק את כל הקבלות? פעולה זו אינה הפיכה.",
+      deleteSuccess: "כל הקבלות נמחקו בהצלחה.",
+      deleteError: "מחיקת הקבלות נכשלה."
     },
     upload: {
       selectFile: "בחר תמונת קבלה",

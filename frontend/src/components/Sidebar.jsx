@@ -53,6 +53,16 @@ const Sidebar = ({ isOpen, onClose }) => {
                 {t('sidebar.receipts')}
               </NavLink>
             </li>
+            <li className="mb-1">
+              <NavLink 
+                to="/settings" 
+                className={({ isActive }) => `nav-link-custom ${isActive ? 'active' : ''}`}
+                onClick={onClose}
+              >
+                <i className="bi bi-gear"></i>
+                {t('sidebar.settings')}
+              </NavLink>
+            </li>
           </ul>
         </div>
       </nav>

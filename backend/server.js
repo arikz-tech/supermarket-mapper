@@ -161,6 +161,44 @@ app.delete('/api/receipts/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/receipts', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Get all image paths before deleting records
+    const result = await client.query("SELECT image_path FROM receipts");
+    const imagePaths = result.rows.map(row => row.image_path).filter(path => path);
+
+    // Delete all receipts (cascades to products due to FK constraints usually, but to be safe/explicit if constraints vary)
+    // Assuming standard FK with ON DELETE CASCADE or simply deleting parent. 
+    // If no cascade, we'd need DELETE FROM products first. But let's assume cascade or just truncate.
+    // TRUNCATE is faster and resets sequences often, but DELETE is safer with specific constraints.
+    // Let's use DELETE FROM receipts to be safe with standard setup.
+    await client.query("DELETE FROM receipts"); 
+    
+    await client.query('COMMIT');
+
+    // Clean up files
+    imagePaths.forEach(imagePath => {
+      const fullPath = path.join(__dirname, 'uploads', imagePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlink(fullPath, (err) => { 
+          if (err) console.error(`Failed to delete file ${fullPath}:`, err); 
+        });
+      }
+    });
+
+    res.json({ success: true, message: "All receipts deleted" });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('DB_DELETE_ALL_ERROR:', err);
+    res.status(500).json({ error: 'Failed to delete all receipts' });
+  } finally {
+    client.release();
+  }
+});
+
 // --- Start Server ---
 const startServer = async () => {
   try {

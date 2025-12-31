@@ -6,6 +6,7 @@ import ReceiptManager from './components/ReceiptManager';
 import ResultsTable from './components/ResultsTable';
 import Sidebar from './components/Sidebar';
 import BestSupermarket from './components/BestSupermarket';
+import Settings from './components/Settings';
 import { useLanguage } from './context/LanguageContext';
 
 function App() {
@@ -52,22 +53,7 @@ function App() {
                <span className="navbar-brand fw-bold d-lg-none">{t('appTitle')}</span>
                
                <div className="ms-auto d-flex align-items-center">
-                  <select 
-                    className="form-select form-select-sm me-3" 
-                    value={language} 
-                    onChange={(e) => setLanguage(e.target.value)}
-                    style={{ width: 'auto' }}
-                  >
-                    <option value="en">English</option>
-                    <option value="he">עברית</option>
-                  </select>
-
-                  <button className="btn btn-sm btn-light position-relative me-3">
-                     <i className="bi bi-bell"></i>
-                     <span className="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
-                        <span className="visually-hidden">New alerts</span>
-                     </span>
-                  </button>
+                  {/* Language and Notification removed */}
                </div>
             </div>
          </nav>
@@ -101,6 +87,14 @@ function App() {
                    <div className="col-12 col-xl-10">
                       <h2 className="fw-bold text-dark mb-4">{t('receiptManagement')}</h2>
                       <ReceiptManager onUpdate={triggerRefresh} refreshSignal={refreshTrigger} />
+                   </div>
+                 </div>
+               } />
+
+               <Route path="/settings" element={
+                 <div className="row justify-content-center">
+                   <div className="col-12 col-xl-10">
+                      <Settings />
                    </div>
                  </div>
                } />
