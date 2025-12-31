@@ -5,6 +5,8 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL environment variable is not set. Please provide the connection string for your PostgreSQL database.");
 }
 
+console.log("DATABASE_URL from environment:", process.env.DATABASE_URL);
+
 // Create a new pool instance.
 // The 'pg' library will automatically use the DATABASE_URL environment variable.
 const pool = new Pool({
