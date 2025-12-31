@@ -26,7 +26,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
     if (!window.confirm(t('receiptMgr.deleteConfirm'))) return;
 
     try {
-      await axios.delete(`/api/receipts/${id}`);
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/receipts/${id}`);
       fetchReceipts();
       onUpdate(); 
     } catch (err) {
@@ -37,7 +37,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
   const handleEdit = async (id) => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/receipts/${id}`);
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/receipts/${id}`);
       setEditingReceipt(res.data);
     } catch (err) {
       console.error("Error fetching receipt details", err);
@@ -52,7 +52,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
 
     setLoading(true);
     try {
-      await axios.put(`/api/receipts/${editingReceipt.id}`, editingReceipt);
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/receipts/${editingReceipt.id}`, editingReceipt);
       setEditingReceipt(null);
       fetchReceipts();
       onUpdate();
@@ -68,7 +68,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
   const getImageUrl = (path) => {
     if (!path) return null;
     if (path.includes('mock_image')) return null; 
-    return `/api/uploads/${path}`; 
+    return `${import.meta.env.VITE_API_URL}/api/uploads/${path}`; 
   };
 
   // Edit Handlers

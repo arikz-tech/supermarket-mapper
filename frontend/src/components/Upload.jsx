@@ -54,7 +54,7 @@ const Upload = ({ onUploadSuccess }) => {
     setMessage(t('upload.uploading'));
 
     try {
-      await axios.post('/api/upload', formData, {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setMessage(t('upload.uploadSuccess'));

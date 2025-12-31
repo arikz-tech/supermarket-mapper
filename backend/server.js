@@ -216,29 +216,6 @@ app.delete('/api/receipts/:id', (req, res) => {
   });
 });
 
-// ====================================================================
-// SERVE FRONTEND STATIC FILES
-// This should be after all other API routes and before app.listen()
-// ====================================================================
-const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
-
-// Check if frontend build exists
-const fs = require('fs');
-if (fs.existsSync(frontendDistPath)) {
-  // Serve static files from the React app
-  app.use(express.static(frontendDistPath));
-
-  // The "catchall" handler: for any request that doesn't
-  // match one above, send back React's index.html file.
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendDistPath, 'index.html'));
-  });
-  console.log(`Serving frontend from: ${frontendDistPath}`);
-} else {
-  console.log('Frontend build not found. Run `npm run build` in the root directory.');
-}
-
-
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

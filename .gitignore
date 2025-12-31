@@ -14,6 +14,7 @@ backend/uploads/*
 
 # Environment
 .env
+.env.*
 
 # System
 .DS_Store
