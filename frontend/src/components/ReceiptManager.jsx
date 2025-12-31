@@ -64,12 +64,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
     }
   };
 
-  // Helper to determine image source
-  const getImageUrl = (path) => {
-    if (!path) return null;
-    if (path.includes('mock_image')) return null; 
-    return `${import.meta.env.VITE_API_URL}/api/uploads/${path}`; 
-  };
+
 
   // Edit Handlers
   const handleReceiptChange = (field, value) => {
@@ -110,14 +105,13 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
                 <th>{t('receiptMgr.date')}</th>
                 <th>{t('receiptMgr.store')}</th>
                 <th>{t('receiptMgr.total')}</th>
-                <th>{t('receiptMgr.preview')}</th>
                 <th>{t('receiptMgr.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {receipts.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="text-center py-3 text-muted">{t('receiptMgr.noReceipts')}</td>
+                  <td colSpan="4" className="text-center py-3 text-muted">{t('receiptMgr.noReceipts')}</td>
                 </tr>
               ) : (
                 receipts.map((r) => (
@@ -125,19 +119,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
                     <td>{new Date(r.date_time).toLocaleDateString()}</td>
                     <td>{r.store_name}</td>
                     <td>₪{r.total_price.toFixed(2)}</td>
-                    <td>
-                      {getImageUrl(r.image_path) ? (
-                        <img 
-                          src={getImageUrl(r.image_path)} 
-                          alt="Receipt" 
-                          className="rounded border"
-                          style={{ height: '50px', width: 'auto', objectFit: 'cover', cursor: 'pointer' }}
-                          onClick={() => setSelectedImage(getImageUrl(r.image_path))}
-                        />
-                      ) : (
-                        <span className="text-muted small">No Image</span>
-                      )}
-                    </td>
+
                     <td>
                       <div className="d-flex gap-2">
                         <button 
@@ -165,22 +147,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
         </div>
       </div>
 
-      {/* Image Preview Modal */}
-      {selectedImage && (
-        <div className="modal fade show d-block" tabIndex="-1" onClick={() => setSelectedImage(null)} style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered" onClick={e => e.stopPropagation()}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">{t('receiptMgr.previewTitle')}</h5>
-                <button type="button" className="btn-close" onClick={() => setSelectedImage(null)}></button>
-              </div>
-              <div className="modal-body text-center p-0 bg-light">
-                <img src={selectedImage} alt="Receipt Full" className="img-fluid" style={{ maxHeight: '80vh' }} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Edit Receipt Modal */}
       {editingReceipt && (
