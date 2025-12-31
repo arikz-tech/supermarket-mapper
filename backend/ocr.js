@@ -1,24 +1,52 @@
 const vision = require('@google-cloud/vision');
 
-// Creates a client.
-// The client will automatically detect credentials from the GOOGLE_APPLICATION_CREDENTIALS environment variable.
-// This variable can be a path to a file, or the JSON content of the key itself.
-const client = new vision.ImageAnnotatorClient();
+// --- Google Cloud Authentication ---
+
+// This function robustly initializes the Google Vision client.
+// 1. It first checks for the GOOGLE_APPLICATION_CREDENTIALS environment variable.
+// 2. If the variable contains JSON, it parses it directly. This is best for cloud (Render, Railway, Vercel).
+// 3. If it's not JSON, it assumes it's a file path. This is best for local development.
+function initializeVisionClient() {
+  const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!credentials) {
+    throw new Error(
+      'GOOGLE_APPLICATION_CREDENTIALS environment variable is not set.'
+    );
+  }
+
+  try {
+    // Try to parse the variable as JSON content
+    const parsedCredentials = JSON.parse(credentials);
+    console.log('[OCR] Initializing Vision client from JSON credentials in environment variable.');
+    return new vision.ImageAnnotatorClient({
+      credentials: parsedCredentials
+    });
+  } catch (e) {
+    // If parsing fails, assume it's a file path
+    console.log('[OCR] Initializing Vision client from file path in environment variable.');
+    return new vision.ImageAnnotatorClient({
+      keyFilename: credentials
+    });
+  }
+}
+
+const client = initializeVisionClient();
+
+
+// --- Main OCR Function ---
 
 async function extractData(filePath) {
   try {
     console.log(`[OCR] Processing ${filePath} with Google Cloud Vision...`);
     
-    // Performs text detection on the local file
     const [result] = await client.textDetection(filePath);
     const detections = result.textAnnotations;
 
-    if (!detections || detections.length === 0) {
+    if (!detections || detections.length === 0 || !detections[0].description) {
       console.log('[OCR] No text detected.');
       return { store_name: "Unknown", products: [], total: 0 };
     }
 
-    // The first annotation is the full text
     const fullText = detections[0].description;
     console.log('[OCR] Full text detected.');
 
@@ -30,54 +58,42 @@ async function extractData(filePath) {
   }
 }
 
+// --- Text Parser ---
+
 function parseReceiptText(text) {
   const lines = text.split('\n');
   const products = [];
   let total = 0.0;
   let storeName = "Unknown Store";
 
-  // Heuristic: First non-empty line might be store name
-  for (let line of lines) {
-    if (line.trim().length > 3) {
-      storeName = line.trim();
-      break;
-    }
+  if (lines.length > 0 && lines[0].trim().length > 1) {
+    storeName = lines[0].trim();
   }
 
-  // Regex to find prices, potentially with shekel sign (₪)
   const priceRegex = /(?:₪\s*)?(\d+\.\d{2})\s*$/;
 
-  for (let line of lines) {
-    line = line.trim();
-    if (!line) continue;
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
     
-    const match = line.match(priceRegex);
+    const match = trimmedLine.match(priceRegex);
     
     if (match) {
       const priceVal = parseFloat(match[1]);
-      let name = line.substring(0, match.index).trim();
+      let name = trimmedLine.substring(0, match.index).trim();
       
-      // Basic filtering for common total-like keywords in Hebrew/English
-      const isTotalLine = /סה"כ|סך הכל|סהכ|total|סופי/i.test(name);
+      const isTotalLine = /סה"כ|סך הכל|סהכ|total|סופי|לתשלום/i.test(name);
       
       if (name.length > 1 && !isTotalLine) {
-        // Simple cleanup
         name = name.replace(/[0-9]/g, '').trim(); 
         if (name) {
           products.push({ name, price: priceVal });
         }
       } else if (isTotalLine) {
-        total = priceVal;
+        if (priceVal > total) { // Take the largest "total" found
+          total = priceVal;
+        }
       }
-    }
-  }
-
-  // If total wasn't found attached to a keyword, assume the last found price is the total
-  if (total === 0 && products.length > 0) {
-    const lastProduct = products[products.length - 1];
-    if (/total|סה"כ|סך הכל/i.test(lastProduct.name)) {
-        total = lastProduct.price;
-        products.pop(); // Remove it from products list
     }
   }
   
