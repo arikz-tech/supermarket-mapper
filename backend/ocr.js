@@ -1,17 +1,9 @@
 const vision = require('@google-cloud/vision');
-const fs = require('fs');
-const path = require('path');
 
-// Verify credentials exist
-const credentialsPath = path.join(__dirname, 'google-credentials.json');
-if (!fs.existsSync(credentialsPath)) {
-  throw new Error("Google Cloud credentials file not found at 'backend/google-credentials.json'. Please follow the setup instructions.");
-}
-
-// Creates a client
-const client = new vision.ImageAnnotatorClient({
-  keyFilename: credentialsPath
-});
+// Creates a client.
+// The client will automatically detect credentials from the GOOGLE_APPLICATION_CREDENTIALS environment variable.
+// This variable can be a path to a file, or the JSON content of the key itself.
+const client = new vision.ImageAnnotatorClient();
 
 async function extractData(filePath) {
   try {
