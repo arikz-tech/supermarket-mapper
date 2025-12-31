@@ -77,11 +77,6 @@ app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
 
   } catch (error) {
     console.error('UPLOAD_PROCESSING_ERROR:', error.message);
-    // Send a more specific error message to the client
-    if (error.message.includes("PDF conversion failed")) {
-      // If Ghostscript is not installed or fails
-      return res.status(400).json({ error: error.message });
-    }
     res.status(500).json({ error: 'Failed to process file.' });
   }
 });

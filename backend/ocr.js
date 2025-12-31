@@ -1,69 +1,40 @@
-const Tesseract = require('tesseract.js');
+const vision = require('@google-cloud/vision');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
 
-const uploadsDir = path.join(__dirname, 'uploads'); // Define uploads directory
+// Verify credentials exist
+const credentialsPath = path.join(__dirname, 'google-credentials.json');
+if (!fs.existsSync(credentialsPath)) {
+  throw new Error("Google Cloud credentials file not found at 'backend/google-credentials.json'. Please follow the setup instructions.");
+}
 
-async function extractData(imagePath) {
-  const fileExtension = path.extname(imagePath).toLowerCase();
-  let ocrImagePath = imagePath;
-  let tempPngCreated = false;
+// Creates a client
+const client = new vision.ImageAnnotatorClient({
+  keyFilename: credentialsPath
+});
 
+async function extractData(filePath) {
   try {
-    if (fileExtension === '.pdf') {
-      const tempFileName = `temp_page_1_${Date.now()}.png`;
-      const tempImagePath = path.join(uploadsDir, tempFileName);
-      
-      // Ghostscript command to convert PDF to PNG
-      // -dNOPAUSE -dBATCH: Standard flags for non-interactive Ghostscript
-      // -sDEVICE=png16m: Output device for 24-bit PNG
-      // -r300: Resolution (300 DPI)
-      // -dFirstPage=1 -dLastPage=1: Process only the first page
-      // -sOutputFile: Output file path (Ghostscript adds %01d for page number, but we only have one)
-      const gsCommand = `gs -dNOPAUSE -dBATCH -sDEVICE=png16m -r300 -dFirstPage=1 -dLastPage=1 -sOutputFile=${tempImagePath} ${imagePath}`;
-      
-      console.log(`[OCR] Converting PDF to PNG with Ghostscript: ${gsCommand}`);
+    console.log(`[OCR] Processing ${filePath} with Google Cloud Vision...`);
+    
+    // Performs text detection on the local file
+    const [result] = await client.textDetection(filePath);
+    const detections = result.textAnnotations;
 
-      await new Promise((resolve, reject) => {
-        exec(gsCommand, (error, stdout, stderr) => {
-          if (error) {
-            console.error(`[OCR] Ghostscript PDF conversion error: ${error.message}`);
-            console.error(`[OCR] Ghostscript stderr: ${stderr}`);
-            return reject(new Error(`PDF conversion failed. Is Ghostscript installed and in PATH? Error: ${stderr || error.message}`));
-          }
-          console.log(`[OCR] Ghostscript stdout: ${stdout}`);
-          console.log(`[OCR] PDF converted to ${tempImagePath}`);
-          resolve();
-        });
-      });
-
-      ocrImagePath = tempImagePath;
-      tempPngCreated = true;
+    if (!detections || detections.length === 0) {
+      console.log('[OCR] No text detected.');
+      return { store_name: "Unknown", products: [], total: 0 };
     }
 
-    const { data: { text } } = await Tesseract.recognize(ocrImagePath, 'heb', {
-      logger: m => console.log(`[OCR] ${m.status}: ${Math.round(m.progress * 100)}%`)
-    });
-    return parseReceiptText(text);
+    // The first annotation is the full text
+    const fullText = detections[0].description;
+    console.log('[OCR] Full text detected.');
+
+    return parseReceiptText(fullText);
 
   } catch (error) {
-    console.error("OCR Error:", error);
-    // Differentiate error messages for better client feedback
-    if (error.message.includes("PDF conversion failed")) {
-      throw error; // Re-throw specific PDF conversion error
-    }
-    throw new Error("Failed to process the receipt. Please ensure it's a clear, valid image or PDF.");
-  } finally {
-    // Clean up temporary PNG file if it was created
-    if (tempPngCreated && fs.existsSync(ocrImagePath)) {
-      try {
-        fs.unlinkSync(ocrImagePath);
-        console.log(`[OCR] Cleaned up temporary file: ${ocrImagePath}`);
-      } catch (cleanupError) {
-        console.error(`[OCR] Error cleaning up temporary PNG: ${cleanupError.message}`);
-      }
-    }
+    console.error("GOOGLE_VISION_ERROR:", error);
+    throw new Error("Failed to process the receipt with Google Cloud Vision.");
   }
 }
 
@@ -81,39 +52,44 @@ function parseReceiptText(text) {
     }
   }
 
-  const priceRegex = /(\d+\.\d{2})\s*$/; // Looks for price at end of line
+  // Regex to find prices, potentially with shekel sign (₪)
+  const priceRegex = /(?:₪\s*)?(\d+\.\d{2})\s*$/;
 
   for (let line of lines) {
     line = line.trim();
-    if (!line || line.includes("קיזוז משקל אריזה")) continue;
-
+    if (!line) continue;
+    
     const match = line.match(priceRegex);
+    
     if (match) {
       const priceVal = parseFloat(match[1]);
       let name = line.substring(0, match.index).trim();
       
-      // Filter out noise
-      if (name.length > 2 && !name.toUpperCase().includes("TOTAL")) {
-        name = name.replace(/[0-9]/g, '').trim();
-        products.push({ name, price: priceVal });
-      } else if (name.toUpperCase().includes("TOTAL")) {
+      // Basic filtering for common total-like keywords in Hebrew/English
+      const isTotalLine = /סה"כ|סך הכל|סהכ|total|סופי/i.test(name);
+      
+      if (name.length > 1 && !isTotalLine) {
+        // Simple cleanup
+        name = name.replace(/[0-9]/g, '').trim(); 
+        if (name) {
+          products.push({ name, price: priceVal });
+        }
+      } else if (isTotalLine) {
         total = priceVal;
       }
     }
   }
 
-  // If total is still 0, try a more generic "Total" keyword search
-  if (total === 0) {
-    const totalRegex = /Total\s*(\d+\.\d{2})/i;
-    for (let line of lines) {
-      const match = line.match(totalRegex);
-      if (match) {
-        total = parseFloat(match[1]);
-        break; // Stop after finding the first total
-      }
+  // If total wasn't found attached to a keyword, assume the last found price is the total
+  if (total === 0 && products.length > 0) {
+    const lastProduct = products[products.length - 1];
+    if (/total|סה"כ|סך הכל/i.test(lastProduct.name)) {
+        total = lastProduct.price;
+        products.pop(); // Remove it from products list
     }
   }
-
+  
+  console.log(`[Parser] Store: ${storeName}, Total: ${total}, Products Found: ${products.length}`);
   return { store_name: storeName, products, total };
 }
 
