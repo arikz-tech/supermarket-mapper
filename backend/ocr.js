@@ -89,13 +89,12 @@ function parseReceiptText(text) {
         if (name) {
           products.push({ name, price: priceVal });
         }
-      } else if (isTotalLine) {
-        if (priceVal > total) { // Take the largest "total" found
-          total = priceVal;
-        }
       }
     }
   }
+
+  // Calculate total as the sum of all identified products
+  total = products.reduce((sum, p) => sum + p.price, 0);
   
   console.log(`[Parser] Store: ${storeName}, Total: ${total}, Products Found: ${products.length}`);
   return { store_name: storeName, products, total };

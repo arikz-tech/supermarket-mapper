@@ -43,12 +43,6 @@ app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
   const client = await pool.connect();
   try {
     const data = await extractData(filePath);
-
-    // Fallback: If OCR didn't find a total line, but found products, sum them up.
-    if (data.total === 0 && data.products && data.products.length > 0) {
-      data.total = data.products.reduce((sum, prod) => sum + (parseFloat(prod.price) || 0), 0);
-    }
-
     await client.query('BEGIN');
 
     const receiptQuery = 'INSERT INTO receipts (store_name, date_time, total_price, image_path) VALUES ($1, $2, $3, $4) RETURNING id';
