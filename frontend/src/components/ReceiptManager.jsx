@@ -80,21 +80,39 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
     setEditingReceipt(prev => ({ ...prev, [field]: value }));
   };
 
+  const calculateTotal = (products) => {
+    return products.reduce((sum, prod) => sum + (parseFloat(prod.price) || 0), 0);
+  };
+
   const handleProductChange = (index, field, value) => {
     const updatedProducts = [...editingReceipt.products];
     updatedProducts[index][field] = value;
-    setEditingReceipt(prev => ({ ...prev, products: updatedProducts }));
+    
+    // Auto-calculate total if price changes
+    let newTotal = editingReceipt.total_price;
+    if (field === 'price') {
+       newTotal = calculateTotal(updatedProducts);
+    }
+    
+    setEditingReceipt(prev => ({ 
+      ...prev, 
+      products: updatedProducts,
+      total_price: field === 'price' ? newTotal : prev.total_price
+    }));
   };
 
   const removeProduct = (index) => {
     const updatedProducts = editingReceipt.products.filter((_, i) => i !== index);
-    setEditingReceipt(prev => ({ ...prev, products: updatedProducts }));
+    const newTotal = calculateTotal(updatedProducts);
+    setEditingReceipt(prev => ({ ...prev, products: updatedProducts, total_price: newTotal }));
   };
 
   const addProduct = () => {
+    const updatedProducts = [...editingReceipt.products, { name: "", price: 0 }];
+    // Total doesn't change when adding 0-price item
     setEditingReceipt(prev => ({
       ...prev,
-      products: [...prev.products, { name: "", price: 0 }]
+      products: updatedProducts
     }));
   };
 
@@ -263,7 +281,22 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
                   </div>
                   <div className="col-md-4">
                     <label className="form-label">{t('receiptMgr.totalPrice')}</label>
-                    <input type="number" className="form-control" value={editingReceipt.total_price || 0} onChange={(e) => handleReceiptChange('total_price', parseFloat(e.target.value))} />
+                    <div className="input-group">
+                      <input 
+                        type="number" 
+                        className="form-control" 
+                        value={editingReceipt.total_price || 0} 
+                        onChange={(e) => handleReceiptChange('total_price', parseFloat(e.target.value))} 
+                      />
+                      <button 
+                        className="btn btn-outline-secondary" 
+                        type="button"
+                        title="Recalculate Total"
+                        onClick={() => handleReceiptChange('total_price', calculateTotal(editingReceipt.products))}
+                      >
+                        <i className="bi bi-calculator"></i>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
