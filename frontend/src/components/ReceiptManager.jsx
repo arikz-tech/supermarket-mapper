@@ -8,10 +8,12 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [editingReceipt, setEditingReceipt] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   const apiBaseUrl = import.meta.env.VITE_API_URL;
 
   const fetchReceipts = async () => {
+    setFetching(true);
     try {
       const res = await axios.get(`${apiBaseUrl}/api/receipts`);
       setReceipts(res.data);
@@ -19,6 +21,8 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
       console.error("Error fetching receipts", err);
       // It's possible the component unmounts during the async call
       setReceipts([]); 
+    } finally {
+      setFetching(false);
     }
   };
 
@@ -102,6 +106,15 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
           <i className="bi bi-arrow-clockwise"></i> {t('refresh')}
         </button>
       </div>
+      {fetching && (
+        <div className="progress" style={{ height: '3px', borderRadius: 0 }}>
+          <div 
+            className="progress-bar progress-bar-striped progress-bar-animated" 
+            role="progressbar" 
+            style={{ width: '100%' }}
+          ></div>
+        </div>
+      )}
       <div className="card-body p-0">
         {/* Desktop/Tablet View */}
         <div className="table-responsive d-none d-md-block">
