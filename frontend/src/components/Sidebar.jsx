@@ -26,7 +26,7 @@ const Sidebar = ({ isOpen, onClose }) => {
              </div>
           </div>
           {/* Close button for mobile inside sidebar */}
-          <button className="btn btn-link text-white d-md-none" onClick={onClose}>
+          <button className="btn btn-link text-white d-lg-none" onClick={onClose}>
             <i className="bi bi-x-lg"></i>
           </button>
         </div>

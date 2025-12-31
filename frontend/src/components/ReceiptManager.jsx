@@ -103,7 +103,8 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
         </button>
       </div>
       <div className="card-body p-0">
-        <div className="table-responsive">
+        {/* Desktop/Tablet View */}
+        <div className="table-responsive d-none d-md-block">
           <table className="table table-hover mb-0 align-middle">
             <thead className="table-light">
               <tr>
@@ -162,6 +163,52 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="d-md-none">
+          {receipts.length === 0 ? (
+             <div className="text-center py-4 text-muted">{t('receiptMgr.noReceipts')}</div>
+          ) : (
+             receipts.map((r) => (
+               <div className="p-3 border-bottom" key={r.id}>
+                 <div className="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                       <div className="fw-bold">{r.store_name}</div>
+                       <div className="text-muted small">{new Date(r.date_time).toLocaleDateString()}</div>
+                    </div>
+                    <div className="fw-bold text-primary">₪{r.total_price.toFixed(2)}</div>
+                 </div>
+                 
+                 <div className="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                       {getImageUrl(r.image_path) && (
+                          <button 
+                             className="btn btn-sm btn-light border"
+                             onClick={() => setSelectedImage(getImageUrl(r.image_path))}
+                          >
+                             <i className="bi bi-image me-1"></i> {t('receiptMgr.preview')}
+                          </button>
+                       )}
+                    </div>
+                    <div className="d-flex gap-2">
+                       <button 
+                          className="btn btn-sm btn-outline-primary" 
+                          onClick={() => handleEdit(r.id)}
+                       >
+                          <i className="bi bi-pencil"></i>
+                       </button>
+                       <button 
+                          className="btn btn-sm btn-outline-danger" 
+                          onClick={() => handleDelete(r.id)}
+                       >
+                          <i className="bi bi-trash"></i>
+                       </button>
+                    </div>
+                 </div>
+               </div>
+             ))
+          )}
         </div>
       </div>
 

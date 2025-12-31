@@ -24,7 +24,7 @@
 }
 
 /* Mobile: Hidden by default, toggled via class */
-@media (max-width: 768px) {
+@media (max-width: 991.98px) {
   .sidebar {
     margin-left: -260px;
   }
@@ -87,7 +87,7 @@
   margin-right: -260px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 991.98px) {
   [dir="rtl"] .sidebar {
     margin-left: 0;
     margin-right: -260px;

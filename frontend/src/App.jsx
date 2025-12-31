@@ -43,13 +43,13 @@ function App() {
             <div className="container-fluid px-4">
                {/* Mobile Toggle Button */}
                <button 
-                 className="btn btn-outline-primary d-md-none me-3" 
+                 className="btn btn-outline-primary d-lg-none me-3" 
                  onClick={() => setIsSidebarOpen(true)}
                >
                  <i className="bi bi-list fs-5"></i>
                </button>
 
-               <span className="navbar-brand fw-bold d-md-none">{t('appTitle')}</span>
+               <span className="navbar-brand fw-bold d-lg-none">{t('appTitle')}</span>
                
                <div className="ms-auto d-flex align-items-center">
                   <select 
@@ -112,7 +112,7 @@ function App() {
         #main-content {
            transition: margin-left 0.3s, margin-right 0.3s;
         }
-        @media (min-width: 768px) {
+        @media (min-width: 992px) {
            #main-content {
               margin-left: 260px; /* Match sidebar width */
            }
