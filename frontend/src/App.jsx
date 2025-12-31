@@ -65,15 +65,15 @@ function App() {
                    <div className="col-12 col-xl-10">
                      <div className="row"> {/* Main row for two-column layout */}
                        <div className="col-12 col-xl-6"> {/* Left column for Upload and Results Table */}
-                         <section className="mb-1">
+                         <section className="mb-4">
                            <Upload onUploadSuccess={triggerRefresh} />
                          </section>
-                         <section className="mb-1">
+                         <section className="mb-4">
                            <ResultsTable products={products} refresh={triggerRefresh} />
                          </section>
                        </div>
                        <div className="col-12 col-xl-6"> {/* Right column for Best Supermarket */}
-                         <section className="mb-1">
+                         <section className="mb-4">
                            <BestSupermarket products={products} />
                          </section>
                        </div>
