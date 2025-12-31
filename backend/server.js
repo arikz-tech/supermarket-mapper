@@ -2,11 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
-const db = require('./database');
+const fs = require('fs');
+const { pool, initializeDatabase } = require('./database');
 const { extractData } = require('./ocr');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Initialize Database
+initializeDatabase();
 
 // Middleware
 app.use(cors());
@@ -17,7 +21,6 @@ app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, 'uploads');
-    const fs = require('fs');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -42,7 +45,9 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-// Upload & Process
+// --- API Endpoints ---
+
+// Upload & Process Receipt
 app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -51,49 +56,48 @@ app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
   const filePath = req.file.path;
   console.log(`Processing file: ${filePath}`);
 
+  const client = await pool.connect();
   try {
     const data = await extractData(filePath);
-    
-    const stmt = db.prepare("INSERT INTO receipts (store_name, date_time, total_price, image_path) VALUES (?, ?, ?, ?)");
-    stmt.run(data.store_name, new Date().toISOString(), data.total, req.file.filename, function(err) {
-      if (err) {
-        console.error('DB_INSERT_ERROR:', err.message);
-        return res.status(500).json({ error: 'Failed to save receipt data.' });
+
+    await client.query('BEGIN');
+
+    // Insert receipt and get the new ID
+    const receiptInsertQuery = 'INSERT INTO receipts (store_name, date_time, total_price, image_path) VALUES ($1, $2, $3, $4) RETURNING id';
+    const receiptValues = [data.store_name, new Date().toISOString(), data.total, req.file.filename];
+    const receiptResult = await client.query(receiptInsertQuery, receiptValues);
+    const receiptId = receiptResult.rows[0].id;
+
+    // Insert products
+    if (data.products && data.products.length > 0) {
+      const productInsertQuery = 'INSERT INTO products (receipt_id, name, price) VALUES ($1, $2, $3)';
+      for (const prod of data.products) {
+        await client.query(productInsertQuery, [receiptId, prod.name, prod.price]);
       }
-      
-      const receiptId = this.lastID;
-      const prodStmt = db.prepare("INSERT INTO products (receipt_id, name, price) VALUES (?, ?, ?)");
-      
-      if (data.products && data.products.length > 0) {
-        data.products.forEach(prod => {
-          prodStmt.run(receiptId, prod.name, prod.price);
-        });
-      }
-      prodStmt.finalize();
-      
-      res.json({ success: true, receiptId, data });
-    });
-    stmt.finalize();
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, receiptId, data });
 
   } catch (error) {
-    console.error('UPLOAD_PROCESSING_ERROR:', error.message);
+    await client.query('ROLLBACK');
+    console.error('UPLOAD_PROCESSING_ERROR:', error);
     res.status(500).json({ error: 'Failed to process file.' });
+  } finally {
+    client.release();
   }
 });
 
 // Get Products Comparison
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   const query = `
     SELECT p.name, p.price, r.store_name, r.date_time 
     FROM products p 
     JOIN receipts r ON p.receipt_id = r.id 
     ORDER BY p.name
   `;
-  
-  db.all(query, [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    
-    // Grouping
+  try {
+    const { rows } = await pool.query(query);
     const comparison = {};
     rows.forEach(row => {
       if (!comparison[row.name]) comparison[row.name] = [];
@@ -103,113 +107,125 @@ app.get('/api/products', (req, res) => {
         date: row.date_time
       });
     });
-    
-    // Convert to array
     const result = Object.keys(comparison).map(name => ({
       name,
       entries: comparison[name]
     }));
-    
     res.json(result);
-  });
+  } catch (err) {
+    console.error('DB_FETCH_ERROR (products):', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get All Receipts
-app.get('/api/receipts', (req, res) => {
-  db.all("SELECT * FROM receipts ORDER BY date_time DESC", [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
+app.get('/api/receipts', async (req, res) => {
+  try {
+    const { rows } = await pool.query("SELECT * FROM receipts ORDER BY date_time DESC");
     res.json(rows);
-  });
+  } catch (err) {
+    console.error('DB_FETCH_ERROR (receipts):', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get Single Receipt with Products
-app.get('/api/receipts/:id', (req, res) => {
-  const id = req.params.id;
-  
-  db.get("SELECT * FROM receipts WHERE id = ?", [id], (err, receipt) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!receipt) return res.status(404).json({ error: "Receipt not found" });
+app.get('/api/receipts/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const receiptRes = await pool.query("SELECT * FROM receipts WHERE id = $1", [id]);
+    if (receiptRes.rows.length === 0) {
+      return res.status(404).json({ error: "Receipt not found" });
+    }
+    const receipt = receiptRes.rows[0];
 
-    db.all("SELECT * FROM products WHERE receipt_id = ?", [id], (err, products) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ ...receipt, products });
-    });
-  });
+    const productsRes = await pool.query("SELECT * FROM products WHERE receipt_id = $1", [id]);
+    receipt.products = productsRes.rows;
+    
+    res.json(receipt);
+  } catch (err) {
+    console.error(`DB_FETCH_ERROR (receipt/${id}):`, err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Update Receipt
-app.put('/api/receipts/:id', (req, res) => {
-  const id = req.params.id;
+app.put('/api/receipts/:id', async (req, res) => {
+  const { id } = req.params;
   const { store_name, date_time, total_price, products } = req.body;
 
-  db.serialize(() => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
     // 1. Update Receipt Details
-    const stmt = db.prepare("UPDATE receipts SET store_name = ?, date_time = ?, total_price = ? WHERE id = ?");
-    stmt.run(store_name, date_time, total_price, id, function(err) {
-      if (err) {
-        console.error("Update Receipt Error:", err);
-        return res.status(500).json({ error: err.message });
-      }
-    });
-    stmt.finalize();
+    const updateReceiptQuery = "UPDATE receipts SET store_name = $1, date_time = $2, total_price = $3 WHERE id = $4";
+    await client.query(updateReceiptQuery, [store_name, date_time, total_price, id]);
 
-    // 2. Replace Products (Delete all old, Insert new)
-    // Transaction-like behavior is better, but serialize ensures sequential execution in sqlite3 node driver
-    db.run("DELETE FROM products WHERE receipt_id = ?", [id], (err) => {
-      if (err) {
-        console.error("Delete Products Error:", err);
-        return res.status(500).json({ error: err.message });
-      }
+    // 2. Delete all old products for this receipt
+    await client.query("DELETE FROM products WHERE receipt_id = $1", [id]);
 
-      if (products && products.length > 0) {
-        const prodStmt = db.prepare("INSERT INTO products (receipt_id, name, price) VALUES (?, ?, ?)");
-        products.forEach(prod => {
-          prodStmt.run(id, prod.name, prod.price);
-        });
-        prodStmt.finalize();
+    // 3. Insert new products
+    if (products && products.length > 0) {
+      const insertProductQuery = "INSERT INTO products (receipt_id, name, price) VALUES ($1, $2, $3)";
+      for (const prod of products) {
+        await client.query(insertProductQuery, [id, prod.name, prod.price]);
       }
-      
-      res.json({ success: true, message: "Receipt updated successfully" });
-    });
-  });
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: "Receipt updated successfully" });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`DB_UPDATE_ERROR (receipt/${id}):`, err);
+    res.status(500).json({ error: 'Failed to update receipt.' });
+  } finally {
+    client.release();
+  }
 });
 
 // Delete Receipt
-app.delete('/api/receipts/:id', (req, res) => {
-  const id = req.params.id;
-  
-  // First get the image path to delete file
-  db.get("SELECT image_path FROM receipts WHERE id = ?", [id], (err, row) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!row) return res.status(404).json({ error: "Receipt not found" });
+app.delete('/api/receipts/:id', async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
 
-    const imagePath = row.image_path;
+  try {
+    await client.query('BEGIN');
 
-    // Delete from DB (Manually delete products first since FK cascade isn't always on by default in sqlite node driver without explicit config)
-    db.serialize(() => {
-      db.run("DELETE FROM products WHERE receipt_id = ?", [id]);
-      db.run("DELETE FROM receipts WHERE id = ?", [id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        
-        // Try to delete file
-        const fs = require('fs');
+    // Get the image path to delete the file later
+    const result = await client.query("SELECT image_path FROM receipts WHERE id = $1", [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Receipt not found" });
+    }
+    const imagePath = result.rows[0].image_path;
+
+    // Delete from DB. ON DELETE CASCADE will handle products.
+    await client.query("DELETE FROM receipts WHERE id = $1", [id]);
+
+    await client.query('COMMIT');
+
+    // Try to delete file after commit
+    if (imagePath) {
         const fullPath = path.join(__dirname, 'uploads', imagePath);
-        // Also check if it might be a relative path or sample path
-        const possibleSamplePath = path.resolve(__dirname, '../sample_receipts', path.basename(imagePath));
-
         if (fs.existsSync(fullPath)) {
-            fs.unlink(fullPath, () => {});
-        } else if (fs.existsSync(possibleSamplePath) && imagePath.includes('mock_image')) {
-            // It's a sample image, maybe don't delete? Or delete if copied.
-            // For now, let's not delete sample source files to allow re-seeding, 
-            // but usually uploads are unique.
+            fs.unlink(fullPath, (err) => {
+                if (err) console.error("Error deleting file:", fullPath, err);
+            });
         }
+    }
 
-        res.json({ success: true, message: "Receipt deleted" });
-      });
-    });
-  });
+    res.json({ success: true, message: "Receipt deleted" });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`DB_DELETE_ERROR (receipt/${id}):`, err);
+    res.status(500).json({ error: 'Failed to delete receipt.' });
+  } finally {
+    client.release();
+  }
 });
+
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
