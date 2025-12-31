@@ -9,15 +9,12 @@ const { extractData } = require('./ocr');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Initialize Database
-initializeDatabase();
-
-// Middleware
+// --- Middleware ---
 app.use(cors());
 app.use(express.json());
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// File Upload Setup
+// --- File Upload Setup ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, 'uploads');
@@ -30,24 +27,11 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + '-' + file.originalname);
   }
 });
+const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Only images and PDFs are allowed.'), false);
-  }
-};
-
-const upload = multer({ 
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
 
 // --- API Endpoints ---
 
-// Upload & Process Receipt
 app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -59,26 +43,21 @@ app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
   const client = await pool.connect();
   try {
     const data = await extractData(filePath);
-
     await client.query('BEGIN');
 
-    // Insert receipt and get the new ID
-    const receiptInsertQuery = 'INSERT INTO receipts (store_name, date_time, total_price, image_path) VALUES ($1, $2, $3, $4) RETURNING id';
-    const receiptValues = [data.store_name, new Date().toISOString(), data.total, req.file.filename];
-    const receiptResult = await client.query(receiptInsertQuery, receiptValues);
+    const receiptQuery = 'INSERT INTO receipts (store_name, date_time, total_price, image_path) VALUES ($1, $2, $3, $4) RETURNING id';
+    const receiptResult = await client.query(receiptQuery, [data.store_name, new Date().toISOString(), data.total, req.file.filename]);
     const receiptId = receiptResult.rows[0].id;
 
-    // Insert products
     if (data.products && data.products.length > 0) {
-      const productInsertQuery = 'INSERT INTO products (receipt_id, name, price) VALUES ($1, $2, $3)';
+      const productQuery = 'INSERT INTO products (receipt_id, name, price) VALUES ($1, $2, $3)';
       for (const prod of data.products) {
-        await client.query(productInsertQuery, [receiptId, prod.name, prod.price]);
+        await client.query(productQuery, [receiptId, prod.name, prod.price]);
       }
     }
 
     await client.query('COMMIT');
     res.json({ success: true, receiptId, data });
-
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('UPLOAD_PROCESSING_ERROR:', error);
@@ -88,145 +67,111 @@ app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
   }
 });
 
-// Get Products Comparison
 app.get('/api/products', async (req, res) => {
-  const query = `
-    SELECT p.name, p.price, r.store_name, r.date_time 
-    FROM products p 
-    JOIN receipts r ON p.receipt_id = r.id 
-    ORDER BY p.name
-  `;
   try {
-    const { rows } = await pool.query(query);
+    const { rows } = await pool.query(`
+      SELECT p.name, p.price, r.store_name, r.date_time FROM products p 
+      JOIN receipts r ON p.receipt_id = r.id ORDER BY p.name
+    `);
     const comparison = {};
     rows.forEach(row => {
       if (!comparison[row.name]) comparison[row.name] = [];
-      comparison[row.name].push({
-        store: row.store_name,
-        price: row.price,
-        date: row.date_time
-      });
+      comparison[row.name].push({ store: row.store_name, price: row.price, date: row.date_time });
     });
-    const result = Object.keys(comparison).map(name => ({
-      name,
-      entries: comparison[name]
-    }));
-    res.json(result);
+    res.json(Object.keys(comparison).map(name => ({ name, entries: comparison[name] })));
   } catch (err) {
     console.error('DB_FETCH_ERROR (products):', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch products' });
   }
 });
 
-// Get All Receipts
 app.get('/api/receipts', async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT * FROM receipts ORDER BY date_time DESC");
     res.json(rows);
   } catch (err) {
     console.error('DB_FETCH_ERROR (receipts):', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch receipts' });
   }
 });
 
-// Get Single Receipt with Products
 app.get('/api/receipts/:id', async (req, res) => {
-  const { id } = req.params;
   try {
-    const receiptRes = await pool.query("SELECT * FROM receipts WHERE id = $1", [id]);
-    if (receiptRes.rows.length === 0) {
-      return res.status(404).json({ error: "Receipt not found" });
-    }
-    const receipt = receiptRes.rows[0];
-
-    const productsRes = await pool.query("SELECT * FROM products WHERE receipt_id = $1", [id]);
-    receipt.products = productsRes.rows;
+    const receiptRes = await pool.query("SELECT * FROM receipts WHERE id = $1", [req.params.id]);
+    if (receiptRes.rows.length === 0) return res.status(404).json({ error: "Receipt not found" });
     
-    res.json(receipt);
+    const productsRes = await pool.query("SELECT * FROM products WHERE receipt_id = $1", [req.params.id]);
+    
+    res.json({ ...receiptRes.rows[0], products: productsRes.rows });
   } catch (err) {
-    console.error(`DB_FETCH_ERROR (receipt/${id}):`, err);
-    res.status(500).json({ error: err.message });
+    console.error(`DB_FETCH_ERROR (receipt/${req.params.id}):`, err);
+    res.status(500).json({ error: 'Failed to fetch receipt details' });
   }
 });
 
-// Update Receipt
 app.put('/api/receipts/:id', async (req, res) => {
   const { id } = req.params;
   const { store_name, date_time, total_price, products } = req.body;
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    // 1. Update Receipt Details
-    const updateReceiptQuery = "UPDATE receipts SET store_name = $1, date_time = $2, total_price = $3 WHERE id = $4";
-    await client.query(updateReceiptQuery, [store_name, date_time, total_price, id]);
-
-    // 2. Delete all old products for this receipt
+    await client.query("UPDATE receipts SET store_name = $1, date_time = $2, total_price = $3 WHERE id = $4", [store_name, date_time, total_price, id]);
     await client.query("DELETE FROM products WHERE receipt_id = $1", [id]);
-
-    // 3. Insert new products
     if (products && products.length > 0) {
-      const insertProductQuery = "INSERT INTO products (receipt_id, name, price) VALUES ($1, $2, $3)";
+      const query = "INSERT INTO products (receipt_id, name, price) VALUES ($1, $2, $3)";
       for (const prod of products) {
-        await client.query(insertProductQuery, [id, prod.name, prod.price]);
+        await client.query(query, [id, prod.name, prod.price]);
       }
     }
-
     await client.query('COMMIT');
     res.json({ success: true, message: "Receipt updated successfully" });
-
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(`DB_UPDATE_ERROR (receipt/${id}):`, err);
-    res.status(500).json({ error: 'Failed to update receipt.' });
+    res.status(500).json({ error: 'Failed to update receipt' });
   } finally {
     client.release();
   }
 });
 
-// Delete Receipt
 app.delete('/api/receipts/:id', async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
-
   try {
     await client.query('BEGIN');
-
-    // Get the image path to delete the file later
     const result = await client.query("SELECT image_path FROM receipts WHERE id = $1", [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Receipt not found" });
-    }
-    const imagePath = result.rows[0].image_path;
-
-    // Delete from DB. ON DELETE CASCADE will handle products.
+    const imagePath = result.rows.length > 0 ? result.rows[0].image_path : null;
+    
     await client.query("DELETE FROM receipts WHERE id = $1", [id]);
-
     await client.query('COMMIT');
 
-    // Try to delete file after commit
     if (imagePath) {
-        const fullPath = path.join(__dirname, 'uploads', imagePath);
-        if (fs.existsSync(fullPath)) {
-            fs.unlink(fullPath, (err) => {
-                if (err) console.error("Error deleting file:", fullPath, err);
-            });
-        }
+      const fullPath = path.join(__dirname, 'uploads', imagePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlink(fullPath, (err) => { if (err) console.error("File deletion error:", err); });
+      }
     }
-
     res.json({ success: true, message: "Receipt deleted" });
-
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(`DB_DELETE_ERROR (receipt/${id}):`, err);
-    res.status(500).json({ error: 'Failed to delete receipt.' });
+    res.status(500).json({ error: 'Failed to delete receipt' });
   } finally {
     client.release();
   }
 });
 
+// --- Start Server ---
+const startServer = async () => {
+  try {
+    await initializeDatabase();
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+};
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+startServer();
