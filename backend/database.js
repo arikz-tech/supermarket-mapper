@@ -1,35 +1,55 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
 
-const dbPath = path.resolve(__dirname, 'receipts.db');
+// Check for the DATABASE_URL environment variable
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set. Please provide the connection string for your PostgreSQL database.");
+}
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database', err);
-  } else {
-    console.log('Connected to SQLite database.');
-    initDb();
+// Create a new pool instance.
+// The 'pg' library will automatically use the DATABASE_URL environment variable.
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  // If you're deploying to a service that requires SSL/TLS for Postgres,
+  // you might need to add this configuration. Render does.
+  ssl: {
+    rejectUnauthorized: false
   }
 });
 
-function initDb() {
-  db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS receipts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      store_name TEXT,
-      date_time TEXT,
-      total_price REAL,
-      image_path TEXT
-    )`);
+const initializeDatabase = async () => {
+  console.log("Connecting to the database and ensuring tables exist...");
+  try {
+    // Create receipts table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS receipts (
+        id SERIAL PRIMARY KEY,
+        store_name VARCHAR(255),
+        date_time TIMESTAMP WITH TIME ZONE,
+        total_price REAL,
+        image_path VARCHAR(255)
+      );
+    `);
 
-    db.run(`CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      receipt_id INTEGER,
-      name TEXT,
-      price REAL,
-      FOREIGN KEY(receipt_id) REFERENCES receipts(id)
-    )`);
-  });
-}
+    // Create products table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id SERIAL PRIMARY KEY,
+        receipt_id INTEGER REFERENCES receipts(id) ON DELETE CASCADE,
+        name VARCHAR(255),
+        price REAL
+      );
+    `);
+    console.log("Database tables are ready.");
+  } catch (err) {
+    console.error("Error initializing database:", err.stack);
+    // Exit the process if we can't connect or create tables, as the app can't run
+    process.exit(1);
+  }
+};
 
-module.exports = db;
+// Export the pool and the initialization function
+module.exports = {
+  pool,
+  initializeDatabase,
+  query: (text, params) => pool.query(text, params),
+};
