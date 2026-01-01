@@ -36,8 +36,13 @@ const ResultsTable = ({ products, refresh }) => {
         </div>
         {uniqueStores.length > 1 && (
           <div className="alert alert-info py-2 px-3 small mb-2">
-            <i className="bi bi-info-circle me-2"></i>
-            {t('showingCommonProducts').replace('{count}', uniqueStores.length)} <strong>{uniqueStores.join(', ')}</strong>
+            <div className="d-flex align-items-start">
+              <i className="bi bi-info-circle me-3 mt-1"></i>
+              <div>
+                <div>{t('showingCommonProducts').replace('{count}', uniqueStores.length)}</div>
+                <strong className="d-block mt-1">{uniqueStores.join(', ')}</strong>
+              </div>
+            </div>
           </div>
         )}
       </div>
