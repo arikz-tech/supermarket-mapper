@@ -199,6 +199,15 @@ app.delete('/api/receipts', async (req, res) => {
   }
 });
 
+// --- Serve Frontend ---
+const frontendPath = path.join(__dirname, '../frontend/dist');
+if (fs.existsSync(frontendPath)) {
+  app.use(express.static(frontendPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
+
 // --- Start Server ---
 const startServer = async () => {
   try {
