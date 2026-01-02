@@ -35,7 +35,9 @@ export const translations = {
       cancel: "Cancel",
       capture: "Capture Photo",
       confirmUpload: "Confirm & Upload",
-      processing: "Processing..."
+      processing: "Processing...",
+      scan: "Scan & Crop",
+      scanning: "Scanning..."
     },
     bestSupermarket: {
       title: "The Best Supermarket",
@@ -108,7 +110,9 @@ export const translations = {
       cancel: "ביטול",
       capture: "צלם תמונה",
       confirmUpload: "אשר והעלה",
-      processing: "מעבד..."
+      processing: "מעבד...",
+      scan: "סריקה וחיתוך",
+      scanning: "סורק..."
     },
     bestSupermarket: {
       title: "הסופר המשתלם ביותר",

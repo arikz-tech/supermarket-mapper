@@ -33,6 +33,40 @@ const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 }
 
 // --- API Endpoints ---
 
+app.post('/api/preview', upload.single('receiptImage'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+
+  const filePath = req.file.path;
+  const processedFileName = 'processed-preview-' + Date.now() + '-' + req.file.originalname;
+  const processedFilePath = path.join(__dirname, 'uploads', processedFileName);
+
+  try {
+    const scanSuccess = await scanImage(filePath, processedFilePath);
+    
+    if (scanSuccess) {
+      // Return URL to the processed image
+      // Assuming /api/uploads serves the uploads folder
+      res.json({ 
+        success: true, 
+        processedUrl: `/api/uploads/${processedFileName}`,
+        message: "Image processed successfully"
+      });
+    } else {
+      // Scan failed or no contour found, return original
+      res.json({ 
+        success: false, 
+        processedUrl: `/api/uploads/${req.file.filename}`,
+        message: "No document detected. Using original image."
+      });
+    }
+  } catch (error) {
+    console.error('PREVIEW_ERROR:', error);
+    res.status(500).json({ error: 'Failed to generate preview.' });
+  }
+});
+
 app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
