@@ -7,7 +7,7 @@ const Upload = ({ onUploadSuccess }) => {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [isScanning, setIsScanning] = useState(false); // New state for scanning
+  const [isScanning, setIsScanning] = useState(false);
   const [message, setMessage] = useState('');
   const [showCamera, setShowCamera] = useState(false);
   
@@ -15,14 +15,57 @@ const Upload = ({ onUploadSuccess }) => {
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  const performScan = async (fileToScan) => {
+    if (!fileToScan || !fileToScan.type.startsWith('image/')) return;
+    
+    setIsScanning(true);
+    // Optional: setMessage(t('upload.scanning')); 
+    
+    const formData = new FormData();
+    formData.append('receiptImage', fileToScan);
+
+    try {
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/preview`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data.success && res.data.processedUrl) {
+        // Construct full URL
+        const baseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '');
+        const finalUrl = `${baseUrl}${res.data.processedUrl}`;
+
+        // Update preview to show the processed image
+        setPreview(finalUrl + '?t=' + Date.now());
+
+        // Fetch the processed image to update the 'file' state
+        const imageRes = await fetch(finalUrl);
+        const imageBlob = await imageRes.blob();
+        const processedFile = new File([imageBlob], "processed_" + fileToScan.name, { type: "image/jpeg" });
+        setFile(processedFile);
+        setMessage(t('upload.scan') + ": Success"); // Or just clear message
+      } else {
+        // Fallback to original (already set)
+        console.log("Scan failed, using original.");
+        // setMessage("Auto-crop failed, using original.");
+      }
+    } catch (err) {
+      console.error("Scan error:", err);
+      // setMessage("Auto-crop error, using original.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
     if (selected) {
       setFile(selected);
       if (selected.type.startsWith('image/')) {
         setPreview(URL.createObjectURL(selected));
+        // Trigger auto-scan
+        performScan(selected);
       } else {
-        setPreview('pdf'); // Special value for PDF preview
+        setPreview('pdf');
       }
       setShowCamera(false);
       setMessage('');
@@ -41,63 +84,11 @@ const Upload = ({ onUploadSuccess }) => {
           setPreview(imageSrc);
           setShowCamera(false);
           setMessage('');
+          // Trigger auto-scan
+          performScan(file);
         });
     }
   }, [webcamRef]);
-
-  // New function to handle scan preview
-  const handleScan = async () => {
-    if (!file) return;
-    
-    setIsScanning(true);
-    setMessage(t('upload.scanning'));
-    
-    const formData = new FormData();
-    formData.append('receiptImage', file);
-
-    try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/preview`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      if (res.data.success && res.data.processedUrl) {
-        // Construct full URL if needed, usually VITE_API_URL includes base
-        // If processedUrl is relative (/api/uploads/...), prepend host if VITE_API_URL is absolute
-        // But usually VITE_API_URL is http://localhost:3001
-        
-        // Use a trick: create a temporary anchor to resolve absolute URL if needed, 
-        // or just rely on the fact that VITE_API_URL points to the backend.
-        const fullUrl = `${import.meta.env.VITE_API_URL}${res.data.processedUrl.replace('/api', '')}`; 
-        // Wait, my backend returns `/api/uploads/...`. If VITE_API_URL is `http://localhost:3001`, 
-        // and I just append, it might work if the backend serves static files correctly.
-        // Actually, backend serves `/api/uploads` -> `uploads` folder.
-        // The returned URL is `/api/uploads/filename`.
-        // So `http://localhost:3001/api/uploads/filename` should work.
-        
-        // Remove trailing slash from VITE_API_URL if present to avoid double slash
-        const baseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '');
-        const finalUrl = `${baseUrl}${res.data.processedUrl}`;
-
-        // Update preview to show the processed image
-        setPreview(finalUrl + '?t=' + Date.now()); // Add timestamp to force reload
-        setMessage(res.data.message || 'Scan complete');
-
-        // Fetch the processed image to update the 'file' state
-        // This ensures the next "Upload" click sends the PROCESSED image
-        const imageRes = await fetch(finalUrl);
-        const imageBlob = await imageRes.blob();
-        const processedFile = new File([imageBlob], "processed_" + file.name, { type: "image/jpeg" });
-        setFile(processedFile);
-      } else {
-        setMessage("Scan failed or no document found. " + (res.data.message || ""));
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage("Scan failed: " + (err.response?.data?.error || err.message));
-    } finally {
-      setIsScanning(false);
-    }
-  };
 
   const handleUpload = async () => {
     if (!file) return;
@@ -188,28 +179,30 @@ const Upload = ({ onUploadSuccess }) => {
                 <p className="mt-2 mb-0 fw-bold">{file?.name}</p>
               </div>
             ) : (
-              <img src={preview} alt="Preview" className="img-fluid rounded border mb-3" style={{ maxHeight: '400px' }} />
+              <div className="position-relative d-inline-block">
+                <img 
+                   src={preview} 
+                   alt="Preview" 
+                   className="img-fluid rounded border mb-3" 
+                   style={{ maxHeight: '400px', opacity: isScanning ? 0.5 : 1 }} 
+                />
+                {isScanning && (
+                  <div className="position-absolute top-50 start-50 translate-middle">
+                     <div className="spinner-border text-primary" role="status">
+                       <span className="visually-hidden">Scanning...</span>
+                     </div>
+                     <div className="fw-bold text-primary mt-2" style={{ textShadow: '0 0 3px white' }}>
+                       {t('upload.scanning')}
+                     </div>
+                  </div>
+                )}
+              </div>
             )}
             <div className="d-flex justify-content-center gap-2 flex-wrap">
               <button className="btn btn-outline-secondary" onClick={() => { setFile(null); setPreview(null); }}>
                 {t('upload.cancel')}
               </button>
               
-              {/* Scan Button - Only for images */}
-              {preview !== 'pdf' && (
-                <button 
-                  className="btn btn-info text-white" 
-                  onClick={handleScan} 
-                  disabled={uploading || isScanning}
-                >
-                  {isScanning ? (
-                    <span><span className="spinner-border spinner-border-sm me-2"></span>{t('upload.scanning')}</span>
-                  ) : (
-                    <span><i className="bi bi-crop me-2"></i>{t('upload.scan')}</span>
-                  )}
-                </button>
-              )}
-
               <button 
                 className="btn btn-success" 
                 onClick={handleUpload} 

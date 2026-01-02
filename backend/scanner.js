@@ -60,8 +60,8 @@ async function scanImage(inputPath, outputPath) {
     
     // 2. Resize for faster processing (maintain aspect ratio)
     // We'll process on a smaller version but warp the ORIGINAL
-    const ratio = height / 500.0;
-    const newHeight = 500;
+    const ratio = height / 800.0;
+    const newHeight = 800;
     const newWidth = Math.floor(width / ratio);
     
     let processed = new cv.Mat();
@@ -70,7 +70,7 @@ async function scanImage(inputPath, outputPath) {
     // 3. Pre-processing: Grayscale -> Blur -> Canny
     cv.cvtColor(processed, processed, cv.COLOR_RGBA2GRAY, 0);
     cv.GaussianBlur(processed, processed, new cv.Size(5, 5), 0);
-    cv.Canny(processed, processed, 75, 200);
+    cv.Canny(processed, processed, 50, 150);
 
     // 4. Find Contours
     let contours = new cv.MatVector();
