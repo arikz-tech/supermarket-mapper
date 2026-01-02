@@ -12,6 +12,51 @@ const cheerio = require('cheerio');
 
 const parsers = [
   {
+    name: 'Weezmo (Dabah, etc.)',
+    canParse: (url) => url.includes('weezmo.com'),
+    parse: async ($, url) => {
+      try {
+        const urlObj = new URL(url);
+        const q = urlObj.searchParams.get('q');
+        
+        if (!q) throw new Error('Missing q parameter in Weezmo URL');
+
+        const apiUrl = `https://receipts.weezmo.com/api/receipts/${q}`;
+        console.log(`[Scraper] Fetching Weezmo API: ${apiUrl}`);
+
+        const response = await axios.get(apiUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Referer': url
+          }
+        });
+
+        const rawData = Array.isArray(response.data) ? response.data[0] : response.data;
+        if (!rawData) throw new Error('No data received from Weezmo API');
+
+        const storeName = (rawData.tBusiness?.businessName || 'Unknown Store') + ' ' + (rawData.tBranch?.branchName || '');
+        
+        const products = (rawData.items || [])
+          .filter(item => item.price > 0 && !/קיזוז|offset/i.test(item.name)) // Filter out discounts and tare weights for clean list
+          .map(item => ({
+            name: item.name,
+            price: item.price
+          }));
+
+        return {
+          store_name: storeName.trim(),
+          date_time: rawData.createdDate || rawData.uploadedDate,
+          total: rawData.total,
+          products: products
+        };
+
+      } catch (err) {
+        console.error('[Weezmo Parser] Error:', err.message);
+        throw err;
+      }
+    }
+  },
+  {
     name: 'Pairzon (Rami Levy, etc.)',
     canParse: (url) => url.includes('pairzon.com'),
     parse: async ($, url) => { // Note: We ignore $ here as we fetch API directly

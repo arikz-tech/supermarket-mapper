@@ -20,6 +20,6 @@
     "multer": "^2.0.2",
     "opencv-wasm": "^4.3.0-10",
     "pg": "^8.11.3",
-    "supermarket-receptions-mapper": "file:.."
+    "sqlite3": "^5.1.7"
   }
 }
