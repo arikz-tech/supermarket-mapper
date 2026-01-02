@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { pool, initializeDatabase } = require('./database');
 const { extractData } = require('./ocr');
+const { scanImage } = require('./scanner');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,13 +41,35 @@ app.post('/api/upload', upload.single('receiptImage'), async (req, res) => {
   const filePath = req.file.path;
   console.log(`Processing file: ${filePath}`);
 
+  // Define output path for processed image
+  const processedFileName = 'processed-' + req.file.filename;
+  const processedFilePath = path.join(__dirname, 'uploads', processedFileName);
+
   const client = await pool.connect();
   try {
-    const data = await extractData(filePath);
+    // 1. Scan/Pre-process Image (Pure JS/Wasm)
+    console.log('[Upload] Starting image pre-processing (Wasm)...');
+    let finalFilePath = filePath;
+    let finalFileName = req.file.filename;
+
+    const scanSuccess = await scanImage(filePath, processedFilePath);
+    
+    if (scanSuccess) {
+      console.log('[Upload] Pre-processing successful.');
+      finalFilePath = processedFilePath;
+      finalFileName = processedFileName;
+    } else {
+      console.log('[Upload] Pre-processing skipped or failed. Using original.');
+    }
+
+    // 2. Perform OCR
+    const data = await extractData(finalFilePath);
+    
     await client.query('BEGIN');
 
     const receiptQuery = 'INSERT INTO receipts (store_name, date_time, total_price, image_path) VALUES ($1, $2, $3, $4) RETURNING id';
-    const receiptResult = await client.query(receiptQuery, [data.store_name, new Date().toISOString(), data.total, req.file.filename]);
+    // Use finalFileName so frontend displays the cropped version if available
+    const receiptResult = await client.query(receiptQuery, [data.store_name, new Date().toISOString(), data.total, finalFileName]);
     const receiptId = receiptResult.rows[0].id;
 
     if (data.products && data.products.length > 0) {

@@ -14,7 +14,9 @@
     "@google-cloud/vision": "^4.0.2",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "jimp": "^1.6.0",
     "multer": "^2.0.2",
+    "opencv-wasm": "^4.3.0-10",
     "pg": "^8.11.3",
     "supermarket-receptions-mapper": "file:.."
   }
