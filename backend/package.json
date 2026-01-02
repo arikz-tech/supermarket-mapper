@@ -20,6 +20,7 @@
     "multer": "^2.0.2",
     "opencv-wasm": "^4.3.0-10",
     "pg": "^8.11.3",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "string-similarity": "^4.0.4"
   }
 }

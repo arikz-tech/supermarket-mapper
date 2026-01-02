@@ -7,6 +7,7 @@ const { pool, initializeDatabase } = require('./database');
 const { extractData } = require('./ocr');
 const { scanImage } = require('./scanner');
 const { scrapeReceipt } = require('./scraper');
+const { clusterProducts } = require('./smart_comparator');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -169,12 +170,11 @@ app.get('/api/products', async (req, res) => {
       SELECT p.name, p.price, r.store_name, r.date_time FROM products p 
       JOIN receipts r ON p.receipt_id = r.id ORDER BY p.name
     `);
-    const comparison = {};
-    rows.forEach(row => {
-      if (!comparison[row.name]) comparison[row.name] = [];
-      comparison[row.name].push({ store: row.store_name, price: row.price, date: row.date_time });
-    });
-    res.json(Object.keys(comparison).map(name => ({ name, entries: comparison[name] })));
+    
+    // Use Smart Comparator Clustering
+    const clusteredData = clusterProducts(rows);
+    
+    res.json(clusteredData);
   } catch (err) {
     console.error('DB_FETCH_ERROR (products):', err);
     res.status(500).json({ error: 'Failed to fetch products' });
