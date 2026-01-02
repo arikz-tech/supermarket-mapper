@@ -37,7 +37,10 @@ export const translations = {
       confirmUpload: "Confirm & Upload",
       processing: "Processing...",
       scan: "Scan & Crop",
-      scanning: "Scanning..."
+      scanning: "Scanning...",
+      digitalUrl: "Digital Receipt URL",
+      receiptUrl: "Receipt URL",
+      scrapeSave: "Scrape & Save"
     },
     bestSupermarket: {
       title: "The Best Supermarket",
@@ -112,7 +115,10 @@ export const translations = {
       confirmUpload: "אשר והעלה",
       processing: "מעבד...",
       scan: "סריקה וחיתוך",
-      scanning: "סורק..."
+      scanning: "סורק...",
+      digitalUrl: "כתובת קבלה דיגיטלית",
+      receiptUrl: "כתובת URL",
+      scrapeSave: "סרוק ושמור"
     },
     bestSupermarket: {
       title: "הסופר המשתלם ביותר",

@@ -6,6 +6,7 @@ const fs = require('fs');
 const { pool, initializeDatabase } = require('./database');
 const { extractData } = require('./ocr');
 const { scanImage } = require('./scanner');
+const { scrapeReceipt } = require('./scraper');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -64,6 +65,44 @@ app.post('/api/preview', upload.single('receiptImage'), async (req, res) => {
   } catch (error) {
     console.error('PREVIEW_ERROR:', error);
     res.status(500).json({ error: 'Failed to generate preview.' });
+  }
+});
+
+app.post('/api/scrape', async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'URL is required' });
+
+  console.log(`[Scrape] Processing URL: ${url}`);
+  const client = await pool.connect();
+
+  try {
+    const data = await scrapeReceipt(url);
+    
+    await client.query('BEGIN');
+    
+    // Insert Receipt
+    // We use "scraped_url" as a marker for image_path for now
+    const receiptQuery = 'INSERT INTO receipts (store_name, date_time, total_price, image_path) VALUES ($1, $2, $3, $4) RETURNING id';
+    const receiptResult = await client.query(receiptQuery, [data.store_name, data.date_time, data.total, 'scraped_url']);
+    const receiptId = receiptResult.rows[0].id;
+
+    // Insert Products
+    if (data.products && data.products.length > 0) {
+      const productQuery = 'INSERT INTO products (receipt_id, name, price) VALUES ($1, $2, $3)';
+      for (const prod of data.products) {
+        await client.query(productQuery, [receiptId, prod.name, prod.price]);
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, receiptId, data });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('SCRAPE_ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to scrape URL.' });
+  } finally {
+    client.release();
   }
 });
 
@@ -278,4 +317,8 @@ const startServer = async () => {
   }
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;

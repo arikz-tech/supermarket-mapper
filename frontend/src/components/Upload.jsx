@@ -10,10 +10,35 @@ const Upload = ({ onUploadSuccess }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [message, setMessage] = useState('');
   const [showCamera, setShowCamera] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [url, setUrl] = useState('');
   
   const { t } = useLanguage();
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  const handleScrape = async () => {
+    if (!url) return;
+    
+    setUploading(true);
+    setMessage(t('upload.processing')); // Reusing processing message
+
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/scrape`, { url });
+      setMessage(t('upload.uploadSuccess'));
+      
+      setUrl('');
+      setShowUrlInput(false);
+      onUploadSuccess();
+      
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      console.error(err);
+      setMessage(t('upload.uploadError') + ' ' + (err.response?.data?.error || err.message));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const performScan = async (fileToScan) => {
     if (!fileToScan || !fileToScan.type.startsWith('image/')) return;
@@ -129,7 +154,7 @@ const Upload = ({ onUploadSuccess }) => {
       <div className="card-body text-center p-3">
         <h5 className="card-title mb-3">{t('uploadTitle')}</h5>
         
-        {!showCamera && !preview && (
+        {!showCamera && !preview && !showUrlInput && (
           <div className="mb-2">
              <button 
                className="btn btn-primary btn-sm w-100 mb-2 py-2" 
@@ -146,11 +171,43 @@ const Upload = ({ onUploadSuccess }) => {
                onChange={handleFileChange} 
              />
              <button 
-               className="btn btn-outline-primary btn-sm w-100 py-2" 
+               className="btn btn-outline-primary btn-sm w-100 mb-2 py-2" 
                onClick={() => fileInputRef.current.click()}
              >
                <i className="bi bi-upload me-2"></i> {t('upload.selectFile')}
              </button>
+
+             <button 
+               className="btn btn-outline-secondary btn-sm w-100 py-2" 
+               onClick={() => setShowUrlInput(true)}
+             >
+               <i className="bi bi-link-45deg me-2"></i> {t('upload.digitalUrl')}
+             </button>
+          </div>
+        )}
+
+        {showUrlInput && (
+          <div className="mb-3">
+            <label className="form-label">{t('upload.receiptUrl')}</label>
+            <input 
+              type="text" 
+              className="form-control mb-2" 
+              placeholder="https://..." 
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+            <div className="d-flex justify-content-center gap-2">
+              <button className="btn btn-secondary" onClick={() => setShowUrlInput(false)}>{t('upload.cancel')}</button>
+              <button 
+                className="btn btn-success" 
+                onClick={handleScrape} 
+                disabled={uploading || !url}
+              >
+                {uploading ? (
+                  <span><span className="spinner-border spinner-border-sm me-2"></span>{t('upload.processing')}</span>
+                ) : t('upload.scrapeSave')}
+              </button>
+            </div>
           </div>
         )}
 
