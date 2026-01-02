@@ -1,4 +1,6 @@
 const vision = require('@google-cloud/vision');
+const path = require('path');
+const fs = require('fs');
 
 // --- Google Cloud Authentication ---
 
@@ -7,23 +9,33 @@ const vision = require('@google-cloud/vision');
 // 2. If the variable contains JSON, it parses it directly. This is best for cloud (Render, Railway, Vercel).
 // 3. If it's not JSON, it assumes it's a file path. This is best for local development.
 function initializeVisionClient() {
-  const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  let credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  
+  // Fallback for local development: check for google-credentials.json in current directory
+  if (!credentials) {
+    const localPath = path.join(__dirname, 'google-credentials.json');
+    if (fs.existsSync(localPath)) {
+      console.log('[OCR] GOOGLE_APPLICATION_CREDENTIALS not set, using local google-credentials.json');
+      credentials = localPath;
+    }
+  }
+
   if (!credentials) {
     throw new Error(
-      'GOOGLE_APPLICATION_CREDENTIALS environment variable is not set.'
+      'GOOGLE_APPLICATION_CREDENTIALS environment variable is not set and local google-credentials.json not found.'
     );
   }
 
   try {
     // Try to parse the variable as JSON content
     const parsedCredentials = JSON.parse(credentials);
-    console.log('[OCR] Initializing Vision client from JSON credentials in environment variable.');
+    console.log('[OCR] Initializing Vision client from JSON credentials.');
     return new vision.ImageAnnotatorClient({
       credentials: parsedCredentials
     });
   } catch (e) {
     // If parsing fails, assume it's a file path
-    console.log('[OCR] Initializing Vision client from file path in environment variable.');
+    console.log(`[OCR] Initializing Vision client from file: ${credentials}`);
     return new vision.ImageAnnotatorClient({
       keyFilename: credentials
     });

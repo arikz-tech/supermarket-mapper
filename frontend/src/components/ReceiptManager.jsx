@@ -10,7 +10,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
 
-  const apiBaseUrl = import.meta.env.VITE_API_URL;
+  const apiBaseUrl = import.meta.env.VITE_API_URL || '';
 
   const fetchReceipts = async () => {
     setFetching(true);
@@ -72,7 +72,7 @@ const ReceiptManager = ({ onUpdate, refreshSignal }) => {
 
   const getImageUrl = (path) => {
     if (!path) return null;
-    return `${apiBaseUrl}/api/uploads/${path}`;
+    return `${apiBaseUrl}/uploads/${path}`;
   };
   
   // Edit Handlers

@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 const Settings = () => {
   const { language, setLanguage, t } = useLanguage();
   const [loading, setLoading] = useState(false);
-  const apiBaseUrl = import.meta.env.VITE_API_URL;
+  const apiBaseUrl = import.meta.env.VITE_API_URL || '';
 
   const handleDeleteAll = async () => {
     if (!window.confirm(t('settings.deleteAllConfirm'))) return;

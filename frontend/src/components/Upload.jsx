@@ -16,6 +16,7 @@ const Upload = ({ onUploadSuccess }) => {
   const { t } = useLanguage();
   const webcamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
   const handleScrape = async () => {
     if (!url) return;
@@ -24,7 +25,7 @@ const Upload = ({ onUploadSuccess }) => {
     setMessage(t('upload.processing')); // Reusing processing message
 
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/scrape`, { url });
+      await axios.post(`${API_BASE_URL}/api/scrape`, { url });
       setMessage(t('upload.uploadSuccess'));
       
       setUrl('');
@@ -50,13 +51,13 @@ const Upload = ({ onUploadSuccess }) => {
     formData.append('receiptImage', fileToScan);
 
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/preview`, formData, {
+      const res = await axios.post(`${API_BASE_URL}/api/preview`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       if (res.data.success && res.data.processedUrl) {
         // Construct full URL
-        const baseUrl = import.meta.env.VITE_API_URL.replace(/\/$/, '');
+        const baseUrl = API_BASE_URL.replace(/\/$/, '');
         const finalUrl = `${baseUrl}${res.data.processedUrl}`;
 
         // Update preview to show the processed image
@@ -125,7 +126,7 @@ const Upload = ({ onUploadSuccess }) => {
     setMessage(t('upload.uploading'));
 
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/upload`, formData, {
+      await axios.post(`${API_BASE_URL}/api/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setMessage(t('upload.uploadSuccess'));

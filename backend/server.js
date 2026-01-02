@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3001;
 // --- Middleware ---
 app.use(cors());
 app.use(express.json());
-app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- File Upload Setup ---
 const storage = multer.diskStorage({
@@ -51,14 +51,14 @@ app.post('/api/preview', upload.single('receiptImage'), async (req, res) => {
       // Assuming /api/uploads serves the uploads folder
       res.json({ 
         success: true, 
-        processedUrl: `/api/uploads/${processedFileName}`,
+        processedUrl: `/uploads/${processedFileName}`,
         message: "Image processed successfully"
       });
     } else {
       // Scan failed or no contour found, return original
       res.json({ 
         success: false, 
-        processedUrl: `/api/uploads/${req.file.filename}`,
+        processedUrl: `/uploads/${req.file.filename}`,
         message: "No document detected. Using original image."
       });
     }
